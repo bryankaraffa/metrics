@@ -86,24 +86,24 @@
     }],
     ["PageSpeed plugin (default)", {
       plugin_pagespeed:true,
-    }, {skip:["repository"]}],
+    }],
     ["PageSpeed plugin (different url)", {
       plugin_pagespeed:true,
       plugin_pagespeed_url:"github.com",
-    }, {skip:["repository"]}],
+    }],
     ["PageSpeed plugin (detailed)", {
       plugin_pagespeed:true,
       plugin_pagespeed_detailed:true,
-    }, {skip:["repository"]}],
+    }],
     ["PageSpeed plugin (screenshot)", {
       plugin_pagespeed:true,
       plugin_pagespeed_screenshot:true,
-    }, {skip:["repository"]}],
+    }],
     ["PageSpeed plugin (complete)", {
       plugin_pagespeed:true,
       plugin_pagespeed_detailed:true,
       plugin_pagespeed_screenshot:true,
-    }, {skip:["repository"]}],
+    }],
     ["Isocalendar plugin (default)", {
       plugin_isocalendar: true,
     }, {skip:["terminal", "repository"]}],
@@ -127,22 +127,36 @@
       plugin_music:true,
       plugin_music_provider: "spotify",
     }, {skip:["terminal", "repository"]}],
+    ["Music plugin (recent - lastfm)", {
+      plugin_music:true,
+      plugin_music_provider: "lastfm",
+      plugin_music_user: "RJ",
+    }, {skip:["terminal", "repository"]}],
     ["Language plugin (default)", {
       plugin_languages:true,
-    }, {skip:["repository"]}],
+    }],
     ["Language plugin (ignored languages)", {
       plugin_languages:true,
       plugin_languages_ignored:"html, css, dockerfile",
-    }, {skip:["repository"]}],
+    }],
     ["Language plugin (skipped repositories)", {
       plugin_languages:true,
       plugin_languages_skipped:"metrics",
-    }, {skip:["repository"]}],
+    }],
+    ["Language plugin (custom color set)", {
+      plugin_languages:true,
+      plugin_languages_colors:"0:ff0000,1:red",
+    }],
+    ["Language plugin (custom color set)", {
+      plugin_languages:true,
+      plugin_languages_colors:"complementary",
+    }],
     ["Language plugin (complete)", {
       plugin_languages:true,
       plugin_languages_ignored:"html, css, dockerfile",
       plugin_languages_skipped:"metrics",
-    }, {skip:["repository"]}],
+      plugin_languages_colors:"rainbow",
+    }],
     ["Follow-up plugin (default)", {
       plugin_followup:true,
     }],
@@ -197,6 +211,12 @@
       plugin_projects_repositories:"lowlighter/metrics/projects/1",
       plugin_projects_limit:0,
     }, {skip:["terminal"]}],
+    ["Projects plugin (descriptions)", {
+      plugin_projects:true,
+      plugin_projects_repositories:"lowlighter/metrics/projects/1",
+      plugin_projects_limit:0,
+      plugin_projects_descriptions:true,
+    }, {skip:["terminal"]}],
     ["Lines plugin (default)", {
       base:"repositories",
       plugin_lines:true,
@@ -236,15 +256,97 @@
       plugin_habits_from:5,
       plugin_habits_charts:true,
     }, {skip:["terminal", "repository"]}],
-    ["Gists plugin (default)", {
-      plugin_gists:true,
-    }, {skip:["terminal"]}],
+    ["Activity  plugin (default)", {
+      plugin_activity:true,
+      plugin_activity_limit:100,
+      plugin_activity_days:14,
+      plugin_activity_filter:"all",
+    }, {skip:["terminal", "repository"]}],
+    ["Activity  plugin (filtered)", {
+      plugin_activity:true,
+      plugin_activity_filter:"pr, issue",
+    }, {skip:["terminal", "repository"]}],
     ["Stars plugin (default)", {
       plugin_stars:true,
-    }, {skip:["terminal"]}],
+    }, {skip:["terminal", "repository"]}],
     ["Stargazers plugin (default)", {
       plugin_stargazers:true,
     }, {skip:["terminal"]}],
+    ["Gists plugin (default)", {
+      plugin_gists:true,
+    }, {skip:["terminal", "repository"]}],
+    ["People plugin (default)", {
+      plugin_people:true,
+    }, {skip:["terminal", "repository"]}],
+    ["People plugin (followers)", {
+      plugin_people:true,
+      plugin_people_types:"followers",
+    }, {skip:["terminal", "repository"]}],
+    ["People plugin (following)", {
+      plugin_people:true,
+      plugin_people_types:"following",
+    }, {skip:["terminal", "repository"]}],
+    ["People plugin (sponsoring)", {
+      plugin_people:true,
+      plugin_people_types:"sponsoring",
+    }, {skip:["terminal", "repository"]}],
+    ["People plugin (sponsors)", {
+      plugin_people:true,
+      plugin_people_types:"sponsors",
+    }, {skip:["terminal"]}],
+    ["People plugin (stargazers)", {
+      plugin_people:true,
+      plugin_people_types:"stargazers",
+    }, {skip:["classic", "terminal"]}],
+    ["People plugin (watchers)", {
+      plugin_people:true,
+      plugin_people_types:"watchers",
+    }, {skip:["classic", "terminal"]}],
+    ["People plugin (thanks)", {
+      plugin_people:true,
+      plugin_people_types:"thanks",
+      plugin_people_thanks:"lowlighter",
+    }, {skip:["classic", "terminal"]}],
+    ["People plugin (identicons)", {
+      plugin_people:true,
+      plugin_people_identicons:true,
+    }, {skip:["terminal", "repository"]}],
+    ["Anilist plugin (default)", {
+      plugin_anilist:true,
+    }, {skip:["terminal", "repository"]}],
+    ["Anilist plugin (manga only)", {
+      plugin_anilist:true,
+      plugin_anilist_medias:"manga",
+    }, {skip:["terminal", "repository"]}],
+    ["Anilist plugin (anime only)", {
+      plugin_anilist:true,
+      plugin_anilist_medias:"anime",
+    }, {skip:["terminal", "repository"]}],
+    ["Anilist plugin (favorites section)", {
+      plugin_anilist:true,
+      plugin_anilist_sections:"favorites",
+    }, {skip:["terminal", "repository"]}],
+    ["Anilist plugin (watching/reading section)", {
+      plugin_anilist:true,
+      plugin_anilist_sections:"watching, reading",
+    }, {skip:["terminal", "repository"]}],
+    ["Anilist plugin (characters section)", {
+      plugin_anilist:true,
+      plugin_anilist_sections:"characters",
+    }, {skip:["terminal", "repository"]}],
+    ["Anilist plugin (additional options)", {
+      plugin_anilist:true,
+      plugin_anilist_limit:0,
+      plugin_anilist_shuffle:false,
+      plugin_anilist_user:"anilist",
+    }, {skip:["terminal", "repository"]}],
+    ["Anilist plugin (complete)", {
+      plugin_anilist:true,
+      plugin_anilist_medias:"manga, anime",
+      plugin_anilist_sections:"favorites, watching, reading, characters",
+      plugin_anilist_limit:0,
+      plugin_anilist_shuffle:false,
+    }, {skip:["terminal", "repository"]}],
   ]
 
 //Tests run
@@ -289,3 +391,16 @@
           })).toBe(true), 60*1e3)
     })
   )
+
+  describe("Additional options", () => {
+    test("Community templates", async () => expect(await action.run({
+      token:"MOCKED_TOKEN",
+      plugin_pagespeed_token:"MOCKED_TOKEN",
+      plugin_tweets_token:"MOCKED_TOKEN",
+      plugin_music_token:"MOCKED_CLIENT_ID, MOCKED_CLIENT_SECRET, MOCKED_REFRESH_TOKEN",
+      template:"@classic", base:"",
+      config_timezone:"Europe/Paris",
+      plugins_errors_fatal:true, dryrun:true, use_mocked_data:true, verify:true,
+      setup_community_templates:"lowlighter/metrics@master:classic",
+    })).toBe(true), 60*1e3)
+  })

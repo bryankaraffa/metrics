@@ -4,65 +4,97 @@
 inputs:
 
   # Personal user token
-  # No additional scopes are needed, unless if you want to include private repositories metrics or use the traffic plugin
+  # No additional scopes are needed unless you want to include private repositories metrics
+  # Some plugins may also require additional scopes
   token:
     description: GitHub Personal Token
     required: true
 
   # Set to "${{ secrets.GITHUB_TOKEN }}"
   committer_token:
-    description: Token used for commits
+    description: GitHub Token used to commit metrics
     default: ""
 
-  # User to compute metrics
-  # Defaults to the owner of "token"
+  # Branch to commit
+  committer_branch:
+    description: The branch used to commit metrics
+    default: ""
+
+  # GitHub username
+  # Optional, as it defaults "token"'s owner
   user:
     description: GitHub username
     default: ""
 
-  # Filepath of generated metrics (relative to repository root)
+  # Output path for generated metrics, relative to repository's root
   filename:
     description: Path of SVG image output
     default: github-metrics.svg
 
-  # Optimize SVG image with SVGO  (minify and remove useless attributes and spaces)
+  # Optimize SVG image with SVGO
+  # It minifies and removes useless attributes
   # Some templates may not support this option
   optimize:
-    description: Optimize SVG image
+    description: SVG optimization
     default: yes
 
-  # Set timezone used by metrics
-  # See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
-  # Some plugins will use this setting to calibrate dates
-  config_timezone:
-    description: Timezone used by metrics
+  # Setup additional templates from remote repositories (like forks)
+  # Format is : user/repo@branch:template
+  # To use a community template, set "template" option to "@template" (where template is the template name)
+  setup_community_templates:
+    description: Additional community templates to setup
     default: ""
 
-  # Specify output type
+  # Timezone used by metrics
+  # See https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  # Some plugins will use it to calibrate dates
+  config_timezone:
+    description: Timezone used
+    default: ""
+
+  # Metrics output type
   # Supported values are :
-  # - svg (support animations and transparency)
-  # - png (support transparency)
-  # - jpeg
+  # - svg
+  # - png (does not support animations)
+  # - jpeg (does not support animations and transparency)
   config_output:
     description: Output image type
     default: svg
 
-  # Enable or disable SVG animations
+  # Enable or disable SVG CSS animations
   config_animations:
-    description: Enable or disable SVG animations
+    description: SVG CSS animations
     default: yes
 
-  # Add bottom padding (percentage)
-  # This can used to add padding if generated image is cropped or on the contrary, remove empty space
+  # Configure padding for output image (percentage)
+  # It can be used to add padding to generated metrics if rendering is cropped or has too much empty space
+  # You can specify one value (for both width and height) and two values (one for width and one for height, seperated by a comma)
   config_padding:
-    description: Configure bottom padding
+    description: Image padding
     default: 6%
+
+  # Configure metrics content order (comma-separated values)
+  # Specify in which order base and plugins will be displayed
+  # It is not mandatory to specify all partials when using this option, in this case, remaining parts will be appended
+  #
+  # For example, to display "base.repositories" before "base.activity" and "base.community" in "classic template" you can use:
+  #   config_order: base.header, base.repositories, base.activity+community
+  #
+  # See source/templates/*/partials/_.json for a list of supported partials for each template.
+  config_order:
+    description: Configure metrics content order
+    default: ""
 
   # Number of repositories to use for metrics
   # A high number increase metrics accuracy, but will consume additional API requests when using plugins
   repositories:
     description: Number of repositories to use
     default: 100
+
+  # Whether to include forked repositories into metrics
+  repositories_forks:
+    description: Include forks in metrics
+    default: no
 
   # Template to use
   # See https://github.com/lowlighter/metrics/tree/master/source/templates for supported templates
@@ -179,6 +211,17 @@ inputs:
     description: List of skipped repositories
     default: ""
 
+  # List of custom colors for specified languages
+  # Use this option when GitHub's color are too similar for your most used languages
+  #
+  # It is possible to use either hexadecimal colors or named colors
+  # - Use "rainbow" values for a predefined set of colors
+  # - Use `${n}:${color}` to change the color of the n-th most used language (e.g. "0:red" to make your most used language red)
+  # - Use `${language}:${color}` to change the color of named language (e.g. "javascript:red" to make JavaScript language red, language case is ignored)
+  plugin_languages_colors:
+    description: Custom languages colors
+    default: ""
+
   # Follow-up plugin
   # Display the number and the ratio of opened/closed issues and opened/merged pull requests on your repositories
   plugin_followup:
@@ -197,6 +240,7 @@ inputs:
   # Supported values are :
   # - "apple" for Apple Music
   # - "spotify" for Spotify
+  # - "lastfm" for Last.fm
   plugin_music_provider:
     description: Name of the music provider you're using
     default: ""
@@ -205,6 +249,7 @@ inputs:
   # This may be required depending on the music provider and the mode you use
   # - "apple" : not required
   # - "spotify" : required for "recent" mode, format is "client_id, client_secret, refresh_token"
+  # - "lastfm" : required, format is "api_key"
   plugin_music_token:
     description: Music provider personal token
     default: ""
@@ -228,6 +273,12 @@ inputs:
   plugin_music_limit:
     description: Number of tracks to display
     default: 4
+
+  # Music service username
+  # Leave empty to default to the login "user"'s GitHub account
+  plugin_music_user:
+    description: "Music provider username"
+    default: ""
 
   # Posts plugin
   # Display recent posts from an external source
@@ -323,6 +374,11 @@ inputs:
     description: Number of active projects to display
     default: 4
 
+  # Display projects descriptions if enabled
+  plugin_projects_descriptions:
+    description: Display projects descriptions
+    default: no
+
   # Tweets plugin
   # Enable it to display recent tweets of the twitter username attached to "user"
   plugin_tweets:
@@ -362,6 +418,125 @@ inputs:
   plugin_stargazers:
     description: Display stargazers evolution over the last two weeks
     default: no
+
+  # Display recent activity
+  plugin_activity:
+    description: Display recent activity
+    default: no
+
+  # Number of activity events to display
+  # Capped to 100
+  plugin_activity_limit:
+    description: Number of activity events to display
+    default: 5
+
+  # Discard older events
+  # Use 0 to display activity whatever the date
+  plugin_activity_days:
+    description: Maximum activity event age
+    default: 14
+
+  # Events type to display
+  # Pass a string of comma-separated values
+  # Supported values are
+  # - "comment" for all kind of comments (commits, issue and pr)
+  # - "ref/create" and "ref/delete" for tag and branch creation/deletion
+  # - "release" for new published releases
+  # - "wiki" for wiki edition
+  # - "push" for pushed commits
+  # - "issue" and "pr" for issues and pull requests
+  # - "review" for pull requests review
+  # - "public" for repositories made public
+  # - "fork" and "star" for forked and starred repositories
+  # - "member" for accepted repository invitations
+  plugin_activity_filter:
+    description: Events to display
+    default: all
+
+  # Display followed and following users
+  plugin_people:
+    description: Display
+    default: no
+
+  # Limit the number of users displayed
+  plugin_people_limit:
+    description: Number of users to display per categorie
+    default: 28
+
+  # Configure image size of users' avatar
+  plugin_people_size:
+    description: Size of users' avatars
+    default: 28
+
+  # List of users categories to display (comma separated)
+  # For user's metrics, supported values are:
+  # - "followers"
+  # - "following"/"followed"
+  # - "sponsors"/"sponsorshipsAsMaintainer"
+  # - "sponsoring"/"sponsored"/"sponsorshipsAsSponsor"
+  # - "thanks" (see "plugin_people_thanks" below)
+  # For repositories' metrics, supported values are:
+  # - "contributors"
+  # - "stargazers"
+  # - "watchers"
+  # - "sponsors"/"sponsorshipsAsMaintainer"
+  # - "thanks" (see "plugin_people_thanks" below)
+  plugin_people_types:
+    description: Categories to display
+    default: followers, following
+
+  # List of users to thanks (comma seperated)
+  # When using "thanks" as a type, it'll display the users you listed in this option
+  # This can be used to create "Special thanks" badges that you can embed elsewhere
+  plugin_people_thanks:
+    description: Users to thanks in "thanks" section type
+    default: ""
+
+  # Display GitHub identicons instead of users' real avatar
+  # Mostly for privacy purposes
+  plugin_people_identicons:
+    description: Use identicons instead of real avatars
+    default: no
+
+  # Display your favorites animes and mangas from AniList
+  plugin_anilist:
+    description: Display your favorites animes and mangas from AniList
+    default: no
+
+  # Medias to display from AniList (comma-separated list)
+  # Supported values are:
+  # - "anime"
+  # - "manga"
+  plugin_anilist_medias:
+    description: Medias to display from AniList data
+    default: anime, manga
+
+  # Sections to display from AniList data (comma-separated list)
+  # Values in "plugin_anilist_medias" may also impact displayed sections
+  # Supported values are:
+  # - "favorites" for favorites animes/mangas
+  # - "watching" for currently watched animes
+  # - "reading" for currently read mangas
+  # - "characters" for favorites characters
+  plugin_anilist_sections:
+    description: Sections to display from AniList data
+    default: favorites
+
+  # Maximum number of medias to display per section from AniList Data
+  plugin_anilist_limit:
+    description: Medias to display
+    default: 2
+
+  # Shuffle AniList data
+  plugin_anilist_shuffle:
+    description: Shuffle AniList data
+    default: yes
+
+  # Username on AniList
+  # Default to GitHub username
+  plugin_anilist_user:
+    description: AniList login
+    default: ""
 
   # ====================================================================================
   # Options below are mostly used for testing
@@ -417,7 +592,7 @@ branding:
 
 # The action will parse its name to check if it's the official action or if it's a forked one
 # On the official action, it'll use the docker image published on GitHub registry when using a released version, allowing faster runs
-# On a forked action, it'll rebuild the docker image from Dockerfile
+# On a forked action, it'll rebuild the docker image from Dockerfile to take into account changes you made
 runs:
   using: composite
   steps:
@@ -458,9 +633,9 @@ runs:
           set +e
           METRICS_IS_RELEASED=$(expr $(expr match $METRICS_VERSION .*-beta) == 0)
           set -e
-          echo "Unreleased: $METRICS_IS_RELEASED"
+          echo "Is released version: $METRICS_IS_RELEASED"
           # Rebuild image for unreleased version
-          if [[ $METRICS_IS_RELEASED ]]; then
+          if [[ "$METRICS_IS_RELEASED" -gt "0" ]]; then
             echo "Using released version $METRICS_TAG, will pull docker image from GitHub registry"
             METRICS_IMAGE=ghcr.io/lowlighter/metrics:$METRICS_TAG
           # Use registry for released version

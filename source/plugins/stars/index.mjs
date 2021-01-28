@@ -1,10 +1,12 @@
 //Setup
-  export default async function ({login, graphql, q, queries, imports}, {enabled = false} = {}) {
+  export default async function ({login, graphql, q, queries, account}, {enabled = false} = {}) {
     //Plugin execution
       try {
         //Check if plugin is enabled and requirements are met
           if ((!enabled)||(!q.stars))
             return null
+          if (account === "organization")
+            throw {error:{message:"Not available for organizations"}}
         //Parameters override
           let {"stars.limit":limit = 4} = q
           //Limit
@@ -14,9 +16,6 @@
           const {user:{starredRepositories:{edges:repositories}}} = await graphql(queries.starred({login, limit}))
         //Format starred repositories
           for (const edge of repositories) {
-            //Formats values
-              edge.node.stargazers = imports.format(edge.node.stargazerCount)
-              edge.node.forks = imports.format(edge.node.forkCount)
             //Format date
               const time = (Date.now()-new Date(edge.starredAt).getTime())/(24*60*60*1000)
               let updated = new Date(edge.starredAt).toDateString().substring(4)
@@ -31,6 +30,8 @@
       }
     //Handle errors
       catch (error) {
+        if (error.error?.message)
+          throw error
         throw {error:{message:"An error occured", instance:error}}
       }
   }

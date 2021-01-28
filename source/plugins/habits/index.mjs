@@ -1,5 +1,5 @@
 //Setup
-  export default async function ({login, rest, imports, data, q}, {enabled = false, from:defaults = 100} = {}) {
+  export default async function ({login, rest, imports, data, q, account}, {enabled = false, from:defaults = 100} = {}) {
     //Plugin execution
       try {
         //Check if plugin is enabled and requirements are met
@@ -10,7 +10,7 @@
           //Events
             from = Math.max(1, Math.min(1000, Number(from)))
           //Days
-            days = Math.max(1, Math.min(30, Number(from)))
+            days = Math.max(1, Math.min(30, Number(days)))
         //Initialization
           const habits = {facts, charts, commits:{hour:NaN, hours:{}, day:NaN, days:{}}, indents:{style:"", spaces:0, tabs:0}, linguist:{available:false, ordered:[], languages:{}}}
           const pages = Math.ceil(from/100)
@@ -28,7 +28,7 @@
         //Get user recent commits
           const commits = events
             .filter(({type}) => type === "PushEvent")
-            .filter(({actor}) => actor.login === login)
+            .filter(({actor}) => account === "organization" ? true : actor.login === login)
             .filter(({created_at}) => new Date(created_at) > new Date(Date.now()-days*24*60*60*1000))
           console.debug(`metrics/compute/${login}/plugins > habits > filtered out ${commits.length} push events over last ${days} days`)
         //Retrieve edited files and filter edited lines (those starting with +/-) from patches

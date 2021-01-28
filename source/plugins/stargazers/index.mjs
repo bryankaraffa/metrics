@@ -1,5 +1,5 @@
 //Setup
-  export default async function ({login, graphql, data, q, queries, imports}, {enabled = false} = {}) {
+  export default async function ({login, graphql, data, q, queries}, {enabled = false} = {}) {
     //Plugin execution
       try {
         //Check if plugin is enabled and requirements are met
@@ -7,16 +7,16 @@
             return null
         //Retrieve stargazers from graphql api
           console.debug(`metrics/compute/${login}/plugins > stargazers > querying api`)
-          const repositories = data.user.repositories.nodes.map(({name}) => name).slice(0, 2)
+          const repositories = data.user.repositories.nodes.map(({name:repository, owner:{login:owner}}) => ({repository, owner})) ?? []
           const dates = []
-          for (const repository of repositories) {
+          for (const {repository, owner} of repositories) {
             //Iterate through stargazers
               console.debug(`metrics/compute/${login}/plugins > stargazers > retrieving stargazers of ${repository}`)
               let cursor = null
               let pushed = 0
               do {
                 console.debug(`metrics/compute/${login}/plugins > stargazers > retrieving stargazers of ${repository} after ${cursor}`)
-                const {repository:{stargazers:{edges}}} = await graphql(queries.stargazers({login, repository, after:cursor ? `after: "${cursor}"` : ""}))
+                const {repository:{stargazers:{edges}}} = await graphql(queries.stargazers({login:owner, repository, after:cursor ? `after: "${cursor}"` : ""}))
                 cursor = edges?.[edges?.length-1]?.cursor
                 dates.push(...edges.map(({starredAt}) => new Date(starredAt)))
                 pushed = edges.length
@@ -47,11 +47,6 @@
           }
           total.min = Math.min(...Object.values(total.dates))
           total.max = Math.max(...Object.values(total.dates))
-        //Format values
-          for (const date in increments.dates)
-            increments.dates[date] = `${increments.dates[date] > 0 ? "+" : ""}${imports.format(increments.dates[date])}`
-          for (const date in total.dates)
-            total.dates[date] = imports.format(total.dates[date])
         //Months name
           const months = ["", "Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."]
         //Results
