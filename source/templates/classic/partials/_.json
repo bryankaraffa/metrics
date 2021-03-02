@@ -1,5 +1,6 @@
 [
   "base.header",
+  "introduction",
   "base.activity+community",
   "base.repositories",
   "followup",
@@ -10,6 +11,7 @@
   "habits",
   "topics",
   "music",
+  "nightscout",
   "posts",
   "tweets",
   "isocalendar",
@@ -17,5 +19,8 @@
   "stargazers",
   "people",
   "activity",
-  "anilist"
+  "anilist",
+  "wakatime",
+  "skyline",
+  "stackoverflow"
 ]

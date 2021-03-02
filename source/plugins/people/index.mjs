@@ -1,5 +1,5 @@
 //Setup
-  export default async function ({login, data, graphql, rest, q, queries, imports, account}, {enabled = false} = {}) {
+  export default async function({login, data, graphql, rest, q, queries, imports, account}, {enabled = false} = {}) {
     //Plugin execution
       try {
         //Check if plugin is enabled and requirements are met
@@ -9,10 +9,10 @@
         //Context
           let context = {
             mode:"user",
-            types:account === "organization" ? ["sponsorshipsAsMaintainer", "sponsorshipsAsSponsor", "thanks"] : ["followers", "following", "sponsorshipsAsMaintainer", "sponsorshipsAsSponsor", "thanks"],
+            types:account === "organization" ? ["sponsorshipsAsMaintainer", "sponsorshipsAsSponsor", "membersWithRole", "thanks"] : ["followers", "following", "sponsorshipsAsMaintainer", "sponsorshipsAsSponsor", "thanks"],
             default:"followers, following",
-            alias:{followed:"following", sponsors:"sponsorshipsAsMaintainer", sponsored:"sponsorshipsAsSponsor", sponsoring:"sponsorshipsAsSponsor"},
-            sponsorships:{sponsorshipsAsMaintainer:"sponsorEntity", sponsorshipsAsSponsor:"sponsorable"}
+            alias:{followed:"following", sponsors:"sponsorshipsAsMaintainer", sponsored:"sponsorshipsAsSponsor", sponsoring:"sponsorshipsAsSponsor", members:"membersWithRole"},
+            sponsorships:{sponsorshipsAsMaintainer:"sponsorEntity", sponsorshipsAsSponsor:"sponsorable"},
           }
           if (q.repo) {
             console.debug(`metrics/compute/${login}/plugins > people > switched to repository mode`)
@@ -20,14 +20,10 @@
             context = {...context, mode:"repository", types:["contributors", "stargazers", "watchers", "sponsorshipsAsMaintainer", "thanks"], default:"stargazers, watchers", owner, repo}
           }
 
-        //Parameters override
-          let {"people.limit":limit = 28, "people.types":types = context.default, "people.size":size = 28, "people.identicons":identicons = false, "people.thanks":thanks = []} = q
-          //Limit
-            limit = Math.max(1, limit)
-          //Repositories projects
-            types = [...new Set(decodeURIComponent(types ?? "").split(",").map(type => type.trim()).map(type => (context.alias[type] ?? type)).filter(type => context.types.includes(type)) ?? [])]
-          //Special thanks
-            thanks = decodeURIComponent(thanks ?? "").split(",").map(user => user.trim()).filter(user => user)
+        //Load inputs
+          let {limit, types, size, identicons, thanks, shuffle} = imports.metadata.plugins.people.inputs({data, account, q}, {types:context.default})
+        //Filter types
+          types = [...new Set([...types].map(type => (context.alias[type] ?? type)).filter(type => context.types.includes(type)) ?? [])]
 
         //Retrieve followers from graphql api
           console.debug(`metrics/compute/${login}/plugins > people > querying api`)
@@ -52,15 +48,20 @@
                   do {
                     console.debug(`metrics/compute/${login}/plugins > people > retrieving ${type} after ${cursor}`)
                     const {[type]:{edges}} = (
-                      type in context.sponsorships ? (await graphql(queries["people.sponsors"]({login:context.owner ?? login, type, size, after:cursor ? `after: "${cursor}"` : "", target:context.sponsorships[type], account})))[account] :
-                      context.mode === "repository" ? (await graphql(queries["people.repository"]({login:context.owner, repository:context.repo, type, size, after:cursor ? `after: "${cursor}"` : "", account})))[account].repository :
-                      (await graphql(queries.people({login, type, size, after:cursor ? `after: "${cursor}"` : ""}))).user
+                      type in context.sponsorships ? (await graphql(queries.people.sponsors({login:context.owner ?? login, type, size, after:cursor ? `after: "${cursor}"` : "", target:context.sponsorships[type], account})))[account] :
+                      context.mode === "repository" ? (await graphql(queries.people.repository({login:context.owner, repository:context.repo, type, size, after:cursor ? `after: "${cursor}"` : "", account})))[account].repository :
+                      (await graphql(queries.people({login, type, size, after:cursor ? `after: "${cursor}"` : "", account})))[account]
                     )
                     cursor = edges?.[edges?.length-1]?.cursor
                     result[type].push(...edges.map(({node}) => node[context.sponsorships[type]] ?? node))
                     pushed = edges.length
-                  } while ((pushed)&&(cursor)&&(result[type].length <= limit))
+                  } while ((pushed)&&(cursor)&&((limit === 0)||(result[type].length <= (shuffle ? 10*limit : limit))))
                 }
+            //Shuffle
+              if (shuffle) {
+                console.debug(`metrics/compute/${login}/plugins > people > shuffling`)
+                imports.shuffle(result[type])
+              }
             //Limit people
               if (limit > 0) {
                 console.debug(`metrics/compute/${login}/plugins > people > keeping only ${limit} ${type}`)
@@ -73,7 +74,7 @@
               }
             //Convert avatars to base64
               console.debug(`metrics/compute/${login}/plugins > people > loading avatars`)
-              await Promise.all(result[type].map(async user => user.avatar = user.avatarUrl ? await imports.imgb64(user.avatarUrl) : "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mOcOnfpfwAGfgLYttYINwAAAABJRU5ErkJggg=="))
+              await Promise.all(result[type].map(async user => user.avatar = await imports.imgb64(user.avatarUrl)))
           }
 
         //Results

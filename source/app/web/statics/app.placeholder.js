@@ -1,5 +1,5 @@
-(function () {
-  //Load asset
+(function ({axios, faker, ejs} = {axios:globalThis.axios, faker:globalThis.faker, ejs:globalThis.ejs}) {
+  //Load assets
     const cached = new Map()
     async function load(url) {
       if (!cached.has(url))
@@ -19,7 +19,7 @@
       return values.sort((a, b) => b - a)
     }
   //Placeholder function
-    window.placeholder = async function (set) {
+    globalThis.placeholder = async function (set) {
       //Load templates informations
         let {image, style, fonts, partials} = await load(`/.templates/${set.templates.selected}`)
         await Promise.all(partials.map(async partial => await load(`/.templates/${set.templates.selected}/partials/${partial}.ejs`)))
@@ -30,7 +30,7 @@
         const data = {
           //Template elements
             style, fonts, errors:[],
-            partials:new Set(partials),
+            partials:new Set([...(set.config.order||"").split(",").map(x => x.trim()).filter(x => partials.includes(x)), ...partials]),
           //Plural helper
             s(value, end = "") {
               return value !== 1 ? {y:"ies", "":"s"}[end] : end
@@ -78,6 +78,7 @@
               avatar:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mOcOnfpfwAGfgLYttYINwAAAABJRU5ErkJggg=="
             },
           //User data
+            account:"user",
             user:{
               databaseId:faker.random.number(10000000),
               name:"(placeholder)",
@@ -127,10 +128,10 @@
                         id:faker.random.number(100000000000000).toString(),
                         created_at:faker.date.recent(),
                         entities: {
-                          mentions: [ { start: 22, end: 33, username: 'lowlighter' } ]
+                          mentions: [ {start:22, end:33, username:"lowlighter"} ]
                         },
                         text: 'Checkout metrics from  <span class="mention">@lowlighter</span>  !  <span class="hashtag">#GitHub</span> ',
-                        mentions: [ 'lowlighter' ]
+                        mentions: ["lowlighter"]
                       },
                       ...new Array(Number(options["tweets.limit"])-1).fill(null).map(_ => ({
                         id:faker.random.number(100000000000000).toString(),
@@ -174,13 +175,22 @@
                     comments:faker.random.number(1000)
                   }
                 }) : null),
+              //Introduction
+                ...(set.plugins.enabled.introduction ? ({
+                  introduction:{
+                    mode:"user",
+                    title:options["introduction.title"],
+                    text:faker.lorem.sentences(),
+                  }
+                }) : null),
               //Languages
                 ...(set.plugins.enabled.languages ? ({
                   languages:{
+                    details:options["languages.details"].split(",").map(x => x.trim()).filter(x => x),
                     get colors() { return Object.fromEntries(Object.entries(this.favorites).map(([key, {color}]) => [key, color])) },
                     total:faker.random.number(10000),
                     get stats() { return Object.fromEntries(Object.entries(this.favorites).map(([key, {value}]) => [key, value])) },
-                    favorites:distribution(7).map((value, index, array) => ({name:faker.lorem.word(), color:faker.internet.color(), value, x:array.slice(0, index).reduce((a, b) => a + b, 0)}))
+                    favorites:distribution(7).map((value, index, array) => ({name:faker.lorem.word(), color:faker.internet.color(), value, size:faker.random.number(1000000), x:array.slice(0, index).reduce((a, b) => a + b, 0)}))
                   }
                 }) : null),
               //Habits
@@ -255,6 +265,17 @@
                     }))
                   }
                 }) : null),
+              //Nightscout
+              ...(set.plugins.enabled.nightscout ? ({
+                nightscout:{
+                  url: options["nightscout.url"] != null && options["nightscout.url"] != "https://example.herokuapp.com" ? options["nightscout.url"]: "https://testapp.herokuapp.com/",
+                  datapoints: faker.random.number({min: 8, max: 12}),
+                  lowalert: faker.random.number({min: 60, max: 90}),
+                  highalert: faker.random.number({min: 150, max: 200}),
+                  urgentlowalert: faker.random.number({min: 40, max: 59}),
+                  urgenthighalert: faker.random.number({min: 201, max: 300})
+                }
+              }) : null),
               //Pagespeed
                 ...(set.plugins.enabled.pagespeed ? ({
                   pagespeed:{
@@ -413,6 +434,35 @@
                     return result
                   }
                 }) : null),
+              //Wakatime
+                ...(set.plugins.enabled.wakatime ? ({
+                  get wakatime() {
+                    const stats = (array) => {
+                      const elements = []
+                      let results = new Array(4+faker.random.number(2)).fill(null).map(_ => ({
+                        name:array ? faker.random.arrayElement(array) : faker.random.words(2).replace(/ /g, "-").toLocaleLowerCase(),
+                        percent:0, total_seconds:faker.random.number(1000000),
+                      }))
+                      let percents = 100
+                      for (const result of results) {
+                        result.percent = 1+faker.random.number(percents-1)
+                        percents -= result.percent
+                        result.percent /= 100
+                      }
+                      results.filter(({name}) => elements.includes(name) ? false : (elements.push(name), true))
+                      return results.sort((a, b) => b.percent - a.percent)
+                    }
+                    return {
+                      sections:options["wakatime.sections"].split(",").map(x => x.trim()).filter(x => x),
+                      days:Number(options["wakatime.days"])||7,
+                      time:{total:faker.random.number(100000), daily:faker.random.number(24)},
+                      editors:stats(["VS Code", "Chrome", "IntelliJ", "PhpStorm", "WebStorm", "Android Studio", "Visual Studio", "Sublime Text", "PyCharm", "Vim", "Atom", "Xcode"]),
+                      languages:stats(["JavaScript", "TypeScript", "PHP", "Java", "Python", "Vue.js", "HTML", "C#", "JSON", "Dart", "SCSS", "Kotlin", "JSX", "Go", "Ruby", "YAML"]),
+                      projects:stats(),
+                      os:stats(["Mac", "Windows", "Linux"]),
+                    }
+                  }
+                }) : null),
               //Anilist
                 ...(set.plugins.enabled.anilist ? ({
                   anilist:{
@@ -469,13 +519,15 @@
               //Activity
                 ...(set.plugins.enabled.activity ? ({
                   activity:{
+                    timestamps:options["activity.timestamps"],
                     events:new Array(Number(options["activity.limit"])).fill(null).map(_ => [
                       {
                         type:"push",
                         repo:`${faker.random.word()}/${faker.random.word()}`,
                         size:1,
                         branch:"master",
-                        commits: [ { sha:faker.git.shortSha(), message:faker.lorem.sentence()} ]
+                        commits: [ { sha:faker.git.shortSha(), message:faker.lorem.sentence()} ],
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"comment",
@@ -486,6 +538,7 @@
                         mobile:null,
                         number:faker.git.shortSha(),
                         title:"",
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"comment",
@@ -496,6 +549,7 @@
                         mobile:null,
                         number:faker.random.number(100),
                         title:faker.lorem.sentence(),
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"comment",
@@ -506,6 +560,7 @@
                         mobile:null,
                         number:faker.random.number(100),
                         title:faker.lorem.sentence(),
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"issue",
@@ -514,6 +569,7 @@
                         user:set.user,
                         number:faker.random.number(100),
                         title:faker.lorem.sentence(),
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"pr",
@@ -522,16 +578,19 @@
                         user:set.user,
                         number:faker.random.number(100),
                         title:faker.lorem.sentence(),
-                        lines:{added:faker.random.number(1000), deleted:faker.random.number(1000)}, files:{changed:faker.random.number(10)}
+                        lines:{added:faker.random.number(1000), deleted:faker.random.number(1000)}, files:{changed:faker.random.number(10)},
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"wiki",
                         repo:`${faker.random.word()}/${faker.random.word()}`,
-                        pages:[faker.lorem.sentence(), faker.lorem.sentence()]
+                        pages:[faker.lorem.sentence(), faker.lorem.sentence()],
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"fork",
                         repo:`${faker.random.word()}/${faker.random.word()}`,
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"review",
@@ -539,6 +598,7 @@
                         user:set.user,
                         number:faker.random.number(100),
                         title:faker.lorem.sentence(),
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"release",
@@ -547,30 +607,36 @@
                         name:faker.random.words(4),
                         draft:faker.random.boolean(),
                         prerelease:faker.random.boolean(),
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"ref/create",
                         repo:`${faker.random.word()}/${faker.random.word()}`,
-                        ref:{name:faker.lorem.slug(), type:faker.random.arrayElement(["tag", "branch"]),}
+                        ref:{name:faker.lorem.slug(), type:faker.random.arrayElement(["tag", "branch"])},
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"ref/delete",
                         repo:`${faker.random.word()}/${faker.random.word()}`,
-                        ref:{name:faker.lorem.slug(), type:faker.random.arrayElement(["tag", "branch"]),}
+                        ref:{name:faker.lorem.slug(), type:faker.random.arrayElement(["tag", "branch"])},
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"member",
                         repo:`${faker.random.word()}/${faker.random.word()}`,
-                        user:set.user
+                        user:set.user,
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"public",
                         repo:`${faker.random.word()}/${faker.random.word()}`,
+                        timestamp:faker.date.recent(),
                       },
                       {
                         type:"star",
                         repo:`${faker.random.word()}/${faker.random.word()}`,
-                        action:"started"
+                        action:"started",
+                        timestamp:faker.date.recent(),
                       },
                     ][Math.floor(Math.random()*15)])
                   }
@@ -585,9 +651,95 @@
                     duration:options["isocalendar.duration"]
                   }
                 }) : null),
+              //Stackoverflow
+                ...(set.plugins.enabled.stackoverflow ? ({
+                  stackoverflow:{
+                    sections:options["stackoverflow.sections"].split(",").map(x => x.trim()).filter(x => x),
+                    lines:options["stackoverflow.lines"],
+                    user:{
+                      reputation:faker.random.number(100000),
+                      badges:faker.random.number(1000),
+                      questions:faker.random.number(1000),
+                      answers:faker.random.number(1000),
+                      comments:faker.random.number(1000),
+                      views:faker.random.number(1000),
+                    },
+                    "answers-top":new Array(options["stackoverflow.limit"]).fill(null).map(_ => ({
+                      type:"answer",
+                      body:faker.lorem.paragraphs(),
+                      score:faker.random.number(1000),
+                      upvotes:faker.random.number(1000),
+                      downvotes:faker.random.number(1000),
+                      accepted:faker.random.boolean(),
+                      comments:faker.random.number(1000),
+                      author:set.user,
+                      created:"01/01/1970",
+                      link:null,
+                      id:faker.random.number(100000),
+                      question_id:faker.random.number(100000),
+                      question:{
+                        title:faker.lorem.sentence(),
+                        tags:[faker.lorem.slug(), faker.lorem.slug()],
+                      }
+                    })),
+                    get ["answers-recent"]() {
+                      return this["answers-top"]
+                    },
+                    "questions-top":new Array(options["stackoverflow.limit"]).fill(null).map(_ => ({
+                      type:"question",
+                      title:faker.lorem.sentence(),
+                      body:faker.lorem.paragraphs(),
+                      score:faker.random.number(1000),
+                      upvotes:faker.random.number(1000),
+                      downvotes:faker.random.number(1000),
+                      favorites:faker.random.number(1000),
+                      tags:[faker.lorem.slug(), faker.lorem.slug()],
+                      answered:faker.random.boolean(),
+                      answers:faker.random.number(1000),
+                      comments:faker.random.number(1000),
+                      views:faker.random.number(1000),
+                      author:set.user,
+                      created:"01/01/1970",
+                      link:null,
+                      id:faker.random.number(100000),
+                      accepted_answer_id:faker.random.number(100000),
+                      answer:null,
+                    })),
+                    get ["questions-recent"]() {
+                      return this["questions-top"]
+                    },
+                  }
+                }) : null),
             },
+        }
+      //Formatters
+        data.f.bytes = function (n) {
+          for (const {u, v} of [{u:"E", v:10**18}, {u:"P", v:10**15}, {u:"T", v:10**12}, {u:"G", v:10**9}, {u:"M", v:10**6}, {u:"k", v:10**3}])
+            if (n/v >= 1)
+              return `${(n/v).toFixed(2).substr(0, 4).replace(/[.]0*$/, "")} ${u}B`
+          return `${n} byte${n > 1 ? "s" : ""}`
+        }
+        data.f.percentage = function (n, {rescale = true} = {}) {
+          return `${(n*(rescale ? 100 : 1)).toFixed(2)
+            .replace(/[.]([1-9]*)(0+)$/, (m, a, b) => `.${a}`)
+            .replace(/[.]$/, "")}%`
+        }
+        data.f.ellipsis = function (text, {length = 20} = {}) {
+          text = `${text}`
+          if (text.length < length)
+            return text
+          return `${text.substring(0, length)}…`
+        }
+        data.f.date = function (string, options) {
+          return new Intl.DateTimeFormat("en-GB", options).format(new Date(string))
         }
       //Render
         return await ejs.render(image, data, {async:true, rmWhitespace:true})
+    }
+  //Reset globals contexts
+    globalThis.placeholder.init = function(globals) {
+      axios = globals.axios || axios
+      faker = globals.faker || faker
+      ejs = globals.ejs || ejs
     }
 })()
