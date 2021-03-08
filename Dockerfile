@@ -10,6 +10,7 @@ RUN chmod +x  /metrics/source/app/action/index.mjs \
   # Based on https://github.com/GoogleChrome/puppeteer/blob/master/docs/troubleshooting.md#running-puppeteer-in-docker
   && apt-get update \
   && apt-get install -y wget gnupg ca-certificates libgconf-2-4 \
+    --no-install-recommends \
   && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
   && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
   && apt-get update \
@@ -20,12 +21,16 @@ RUN chmod +x  /metrics/source/app/action/index.mjs \
   # Based on https://github.com/github/linguist and https://github.com/github/licensed
   && apt-get update \
   && apt-get install -y ruby-full \
+    --no-install-recommends \
   && apt-get install -y git g++ cmake pkg-config libicu-dev zlib1g-dev libcurl4-openssl-dev libssl-dev ruby-dev \
+    --no-install-recommends \
   && gem install github-linguist \
   && gem install licensed \
+    --no-install-recommends \
   # Install python for node-gyp
   && apt-get update \
   && apt-get install -y python3 \
+    --no-install-recommends \
   # Install node modules
   && cd /metrics \
   && npm ci \
