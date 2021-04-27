@@ -1,6 +1,7 @@
 name: "📰 Recent activity"
 cost: 1 REST request per 100 events
 categorie: github
+index: 16
 supports:
   - user
   - organization
@@ -67,3 +68,11 @@ inputs:
     description: Display events timestamps
     type: boolean
     default: no
+
+  # List of repositories that will be skipped
+  plugin_activity_skipped:
+    description: Repositories to skip
+    type: array
+    format: comma-separated
+    default: ""
+    example: my-repo-1, my-repo-2, owner/repo-3 ...

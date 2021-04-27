@@ -21,7 +21,7 @@
 
         //Load tweets
           console.debug(`metrics/compute/${login}/plugins > tweets > querying api`)
-          const {data:{data:tweets = [], includes:{media = []}}} = await imports.axios.get(`https://api.twitter.com/2/tweets/search/recent?query=from:${username}&tweet.fields=created_at,entities&media.fields=preview_image_url,url,type&expansions=entities.mentions.username,attachments.media_keys`, {headers:{Authorization:`Bearer ${token}`}})
+          const {data:{data:tweets = [], includes:{media = []} = {}}} = await imports.axios.get(`https://api.twitter.com/2/tweets/search/recent?query=from:${username}&tweet.fields=created_at,entities&media.fields=preview_image_url,url,type&expansions=entities.mentions.username,attachments.media_keys`, {headers:{Authorization:`Bearer ${token}`}})
           const medias = new Map(media.map(({media_key, type, url, preview_image_url}) => [media_key, (type === "photo")||(type === "animated_gif") ? url : type === "video" ? preview_image_url : null]))
 
         //Limit tweets
@@ -46,11 +46,17 @@
                 //Medias
                   if (tweet.attachments)
                     tweet.attachments = await Promise.all(tweet.attachments.media_keys.filter(key => medias.get(key)).map(key => medias.get(key)).map(async url => ({image:await imports.imgb64(url, {height:-1, width:450})})))
-                  else if (linked) {
+                  if (linked) {
                     const {result:{ogImage, ogSiteName:website, ogTitle:title, ogDescription:description}} = await imports.opengraph({url:linked})
                     const image = await imports.imgb64(ogImage?.url, {height:-1, width:450, fallback:false})
-                    if (image)
-                      tweet.attachments = [{image, title, description, website}]
+                    if (image) {
+                      if (tweet.attachments)
+                        tweet.attachments.unshift([{image, title, description, website}])
+                      else
+                        tweet.attachments = [{image, title, description, website}]
+                    }
+                    else
+                      tweet.text = `${tweet.text}\n${linked}`
                   }
               }
               else
@@ -68,7 +74,7 @@
               //Line breaks
                 .replace(/\n/g, "<br/>")
               //Links
-                .replace(new RegExp(`${tweet.urls.size ? "" : "noop^"}(${[...tweet.urls.keys()].map(url => `(?:${url})`).join("|")})`, "gi"), (_, url) => `<span class="link">${tweet.urls.get(url)}<link></span>`), {"&":true})
+                .replace(new RegExp(`${tweet.urls.size ? "" : "noop^"}(${[...tweet.urls.keys()].map(url => `(?:${url})`).join("|")})`, "gi"), (_, url) => `<a href="${url}" class="link">${tweet.urls.get(url)}</a>`), {"&":true})
           }))
 
         //Result

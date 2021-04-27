@@ -14,7 +14,7 @@
           console.debug(`metrics/compute/${login}/plugins > topics > searching starred topics`)
           let topics = []
           console.debug(`metrics/compute/${login}/plugins > topics > starting browser`)
-          const browser = await imports.puppeteer.launch({headless:true, executablePath:process.env.PUPPETEER_BROWSER_PATH, args:["--no-sandbox", "--disable-extensions", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]})
+          const browser = await imports.puppeteer.launch()
           console.debug(`metrics/compute/${login}/plugins > topics > started ${await browser.version()}`)
           const page = await browser.newPage()
 
@@ -63,7 +63,9 @@
           for (const topic of topics) {
             if (topic.icon) {
               console.debug(`metrics/compute/${login}/plugins > topics > processing ${topic.name}`)
-              topic.icon = await imports.imgb64(topic.icon)
+              const {icon} = topic
+              topic.icon = await imports.imgb64(icon)
+              topic.icon24 = await imports.imgb64(icon, {force:true, width:24, height:24})
             }
             //Escape HTML description
               topic.description = imports.htmlescape(topic.description)

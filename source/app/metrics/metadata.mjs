@@ -5,7 +5,7 @@
   import yaml from "js-yaml"
 
 //Defined categories
-  const categories = ["core", "github", "social", "health", "other"]
+  const categories = ["core", "github", "social", "other"]
 
 /**Metadata descriptor parser */
   export default async function metadata({log = true} = {}) {
@@ -13,6 +13,7 @@
       const __metrics = path.join(path.dirname(url.fileURLToPath(import.meta.url)), "../../..")
       const __templates = path.join(__metrics, "source/templates")
       const __plugins = path.join(__metrics, "source/plugins")
+      const __package = path.join(__metrics, "package.json")
 
     //Init
       const logger = log ? console.debug : () => null
@@ -28,8 +29,8 @@
       }
     //Reorder keys
       const {base, core, ...plugins} = Plugins //eslint-disable-line no-unused-vars
-      Plugins = Object.fromEntries(Object.entries(Plugins).sort(([_an, a], [_bn, b]) => categories.indexOf(a.categorie) - categories.indexOf(b.categorie)))
-
+      Plugins = Object.fromEntries(Object.entries(Plugins).sort(([_an, a], [_bn, b]) => a.categorie === b.categorie ? (a.index ?? Infinity) - (b.index ?? Infinity) : categories.indexOf(a.categorie) - categories.indexOf(b.categorie)))
+      logger(`metrics/metadata > loaded [${Object.keys(Plugins).join(", ")}]`)
     //Load templates metadata
       let Templates = {}
       logger("metrics/metadata > loading templates metadata")
@@ -42,11 +43,14 @@
         Templates[name] = await metadata.template({__templates, name, plugins, logger})
       }
     //Reorder keys
-      const {classic, repository, community, ...templates} = Templates
-      Templates = {classic, repository, ...templates, community}
+      const {classic, repository, markdown, community, ...templates} = Templates
+      Templates = {classic, repository, ...templates, markdown, community}
+
+    //Packaged metadata
+      const packaged = JSON.parse(`${await fs.promises.readFile(__package)}`)
 
     //Metadata
-      return {plugins:Plugins, templates:Templates}
+      return {plugins:Plugins, templates:Templates, packaged}
   }
 
 /**Metadata extractor for templates */
@@ -267,7 +271,7 @@
         return {
           name:raw.match(/^### (?<name>[\s\S]+?)\n/)?.groups?.name?.trim(),
           readme:{
-            demo:raw.match(/(?<demo><table>[\s\S]*?<[/]table>)/)?.groups?.demo?.replace(/<[/]?(?:table|tr)>/g, "")?.trim() ?? (name === "community" ? "<td align=\"center\">See <a href=\"/source/templates/community/README.md\">documentation</a> 🌍</td>" : "<td></td>"),
+            demo:raw.match(/(?<demo><table>[\s\S]*?<[/]table>)/)?.groups?.demo?.replace(/<[/]?(?:table|tr)>/g, "")?.trim() ?? (name === "community" ? '<td align="center" colspan="2">See <a href="/source/templates/community/README.md">documentation</a> 🌍</td>' : "<td></td>"),
             compatibility:{...compatibility, base:true},
           },
         }

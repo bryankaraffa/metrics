@@ -7,7 +7,8 @@
             return null
 
         //Load inputs
-          imports.metadata.plugins.lines.inputs({data, account, q})
+          let {skipped} = imports.metadata.plugins.lines.inputs({data, account, q})
+          skipped.push(...data.shared["repositories.skipped"])
 
         //Context
           let context = {mode:"user"}
@@ -22,18 +23,16 @@
         //Get contributors stats from repositories
           console.debug(`metrics/compute/${login}/plugins > lines > querying api`)
           const lines = {added:0, deleted:0}
-          const response = await Promise.all(repositories.map(({repo, owner}) => rest.repos.getContributorsStats({owner, repo})))
-
+          const response = await Promise.all(repositories.map(({repo, owner}) => (skipped.includes(repo.toLocaleLowerCase()))||(skipped.includes(`${owner}/${repo}`)) ? {} : rest.repos.getContributorsStats({owner, repo})))
         //Compute changed lines
           console.debug(`metrics/compute/${login}/plugins > lines > computing total diff`)
           response.map(({data:repository}) => {
             //Check if data are available
               if (!Array.isArray(repository))
                 return
-            //Extract author
-              const [contributor] = repository.filter(({author}) => context.mode === "repository" ? true : author.login === login)
             //Compute editions
-              if (contributor)
+              const contributors = repository.filter(({author}) => context.mode === "repository" ? true : author?.login === login)
+              for (const contributor of contributors)
                 contributor.weeks.forEach(({a, d}) => (lines.added += a, lines.deleted += d))
           })
 

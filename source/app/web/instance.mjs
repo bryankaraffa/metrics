@@ -70,7 +70,11 @@
       }
     //Cache headers middleware
       middlewares.push((req, res, next) => {
-        res.header("Cache-Control", cached ? `public, max-age=${Math.round(cached/1000)}` : "no-store, no-cache")
+        const maxage = Math.round(Number(req.query.cache))
+        if ((cached)||(maxage > 0))
+          res.header("Cache-Control", `public, max-age=${Math.round((maxage > 0 ? maxage : cached)/1000)}`)
+        else
+          res.header("Cache-Control", "no-store, no-cache")
         next()
       })
 
@@ -85,7 +89,14 @@
       let requests = {limit:0, used:0, remaining:0, reset:NaN}
       if (!conf.settings.notoken) {
         requests = (await rest.rateLimit.get()).data.rate
-        setInterval(async() => requests = (await rest.rateLimit.get()).data.rate, 30*1000)
+        setInterval(async() => {
+          try {
+            requests = (await rest.rateLimit.get()).data.rate
+          }
+          catch {
+            console.debug("metrics/app > failed to update remaining requests")
+          }
+        }, 5*60*1000)
       }
       //Web
         app.get("/", limiter, (req, res) => res.sendFile(`${conf.paths.statics}/index.html`))
@@ -140,12 +151,71 @@
           }
         })
 
+      //About routes
+        app.use("/about/.statics/", express.static(`${conf.paths.statics}/about`))
+        app.get("/about/", limiter, (req, res) => res.sendFile(`${conf.paths.statics}/about/index.html`))
+        app.get("/about/index.html", limiter, (req, res) => res.sendFile(`${conf.paths.statics}/about/index.html`))
+        app.get("/about/:login", limiter, (req, res) => res.sendFile(`${conf.paths.statics}/about/index.html`))
+        app.get("/about/query/:login/", ...middlewares, async(req, res) => {
+          //Check username
+            const login = req.params.login?.replace(/[\n\r]/g, "")
+            if (!/^[-\w]+$/i.test(login)) {
+              console.debug(`metrics/app/${login}/insights > 400 (invalid username)`)
+              return res.status(400).send("Bad request: username seems invalid")
+            }
+          //Compute metrics
+            try {
+              //Read cached data if possible
+                if ((!debug)&&(cached)&&(cache.get(`about.${login}`))) {
+                  console.debug(`metrics/app/${login}/insights > using cached results`)
+                  return res.send(cache.get(`about.${login}`))
+                }
+              //Compute metrics
+                console.debug(`metrics/app/${login}/insights > compute insights`)
+                const json = await metrics({
+                  login, q:{
+                    template:"classic",
+                    achievements:true, "achievements.threshold":"X",
+                    isocalendar:true, "isocalendar.duration":"full-year",
+                    languages:true, "languages.limit":0,
+                    activity:true, "activity.limit":100, "activity.days":0,
+                    notable:true,
+                  },
+                }, {graphql, rest, plugins:{achievements:{enabled:true}, isocalendar:{enabled:true}, languages:{enabled:true}, activity:{enabled:true, markdown:"extended"}, notable:{enabled:true}}, conf, convert:"json"}, {Plugins, Templates})
+              //Cache
+                if ((!debug)&&(cached)) {
+                  const maxage = Math.round(Number(req.query.cache))
+                  cache.put(`about.${login}`, json, maxage > 0 ? maxage : cached)
+                }
+                return res.json(json)
+            }
+          //Internal error
+            catch (error) {
+              //Not found user
+                if ((error instanceof Error)&&(/^user not found$/.test(error.message))) {
+                  console.debug(`metrics/app/${login} > 404 (user/organization not found)`)
+                  return res.status(404).send("Not found: unknown user or organization")
+                }
+              //GitHub failed request
+                if ((error instanceof Error)&&(/this may be the result of a timeout, or it could be a GitHub bug/i.test(error.errors?.[0]?.message))) {
+                  console.debug(`metrics/app/${login} > 502 (bad gateway from GitHub)`)
+                  const request = encodeURIComponent(error.errors[0].message.match(/`(?<request>[\w:]+)`/)?.groups?.request ?? "").replace(/%3A/g, ":")
+                  return res.status(500).send(`Internal Server Error: failed to execute request ${request} (this may be the result of a timeout, or it could be a GitHub bug)`)
+                }
+              //General error
+                console.error(error)
+                return res.status(500).send("Internal Server Error: failed to process metrics correctly")
+            }
+        })
+
     //Metrics
-      const pending = new Set()
+      const pending = new Map()
       app.get("/:login/:repository?", ...middlewares, async(req, res) => {
         //Request params
           const login = req.params.login?.replace(/[\n\r]/g, "")
           const repository = req.params.repository?.replace(/[\n\r]/g, "")
+          let solve = null
+        //Check username
           if (!/^[-\w]+$/i.test(login)) {
             console.debug(`metrics/app/${login} > 400 (invalid username)`)
             return res.status(400).send("Bad request: username seems invalid")
@@ -155,8 +225,16 @@
             console.debug(`metrics/app/${login} > 403 (not in allowed users)`)
             return res.status(403).send("Forbidden: username not in allowed list")
           }
+        //Prevent multiples requests
+          if ((!debug)&&(!mock)&&(pending.has(login))) {
+            console.debug(`metrics/app/${login} > awaiting pending request`)
+            await pending.get(login)
+          }
+          else
+            pending.set(login, new Promise(_solve => solve = _solve))
         //Read cached data if possible
           if ((!debug)&&(cached)&&(cache.get(login))) {
+            console.debug(`metrics/app/${login} > using cached image`)
             const {rendered, mime} = cache.get(login)
             res.header("Content-Type", mime)
             return res.send(rendered)
@@ -166,12 +244,6 @@
             console.debug(`metrics/app/${login} > 503 (maximum users reached)`)
             return res.status(503).send("Service Unavailable: maximum number of users reached, only cached metrics are available")
           }
-        //Prevent multiples requests
-          if (pending.has(login)) {
-            console.debug(`metrics/app/${login} > 409 (multiple requests)`)
-            return res.status(409).send(`Conflict: a request for "${login}" is already being processed, retry later once previous one is finished`)
-          }
-          pending.add(login)
         //Repository alias
           if (repository) {
             console.debug(`metrics/app/${login} > compute repository metrics`)
@@ -189,11 +261,13 @@
                 graphql, rest, plugins, conf,
                 die:q["plugins.errors.fatal"] ?? false,
                 verify:q.verify ?? false,
-                convert:["jpeg", "png"].includes(q["config.output"]) ? q["config.output"] : null,
+                convert:["jpeg", "png", "json", "markdown", "markdown-pdf"].includes(q["config.output"]) ? q["config.output"] : null,
               }, {Plugins, Templates})
             //Cache
-              if ((!debug)&&(cached))
-                cache.put(login, {rendered, mime}, cached)
+              if ((!debug)&&(cached)) {
+                const maxage = Math.round(Number(req.query.cache))
+                cache.put(login, {rendered, mime}, maxage > 0 ? maxage : cached)
+              }
             //Send response
               res.header("Content-Type", mime)
               return res.send(rendered)
@@ -210,13 +284,19 @@
                 console.debug(`metrics/app/${login} > 400 (bad request)`)
                 return res.status(400).send("Bad request: unsupported template")
               }
+            //GitHub failed request
+              if ((error instanceof Error)&&(/this may be the result of a timeout, or it could be a GitHub bug/i.test(error.errors?.[0]?.message))) {
+                console.debug(`metrics/app/${login} > 502 (bad gateway from GitHub)`)
+                const request = encodeURIComponent(error.errors[0].message.match(/`(?<request>[\w:]+)`/)?.groups?.request ?? "").replace(/%3A/g, ":")
+                return res.status(500).send(`Internal Server Error: failed to execute request ${request} (this may be the result of a timeout, or it could be a GitHub bug)`)
+              }
             //General error
               console.error(error)
               return res.status(500).send("Internal Server Error: failed to process metrics correctly")
           }
         //After rendering
           finally {
-            pending.delete(login)
+            solve?.()
           }
       })
 

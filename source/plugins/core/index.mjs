@@ -9,7 +9,7 @@
       const {"config.animations":animations, "config.timezone":_timezone, "debug.flags":dflags} = imports.metadata.plugins.core.inputs({data, account, q})
 
     //Init
-      const computed = {commits:0, sponsorships:0, licenses:{favorite:"", used:{}}, token:{}, repositories:{watchers:0, stargazers:0, issues_open:0, issues_closed:0, pr_open:0, pr_merged:0, forks:0, forked:0, releases:0}}
+      const computed = {commits:0, sponsorships:0, licenses:{favorite:"", used:{}}, token:{}, repositories:{watchers:0, stargazers:0, issues_open:0, issues_closed:0, pr_open:0, pr_closed:0, pr_merged:0, forks:0, forked:0, releases:0}}
       const avatar = imports.imgb64(data.user.avatarUrl)
       data.computed = computed
       console.debug(`metrics/compute/${login} > formatting common metrics`)
@@ -34,7 +34,7 @@
 
     //Plugins
       for (const name of Object.keys(imports.plugins)) {
-        if (!plugins[name]?.enabled)
+        if ((!plugins[name]?.enabled)||(!q[name]))
           continue
         pending.push((async() => {
           try {
@@ -57,7 +57,7 @@
     //Iterate through user's repositories
       for (const repository of data.user.repositories.nodes) {
         //Simple properties with totalCount
-          for (const property of ["watchers", "stargazers", "issues_open", "issues_closed", "pr_open", "pr_merged", "releases"])
+          for (const property of ["watchers", "stargazers", "issues_open", "issues_closed", "pr_open", "pr_closed", "pr_merged", "releases"])
             computed.repositories[property] += repository[property].totalCount
         //Forks
           computed.repositories.forks += repository.forkCount
@@ -81,6 +81,7 @@
       const diff = (Date.now()-(new Date(data.user.createdAt)).getTime())/(365*24*60*60*1000)
       const years = Math.floor(diff)
       const months = Math.floor((diff-years)*12)
+      computed.registered = {years, months, diff}
       computed.registration = years ? `${years} year${imports.s(years)} ago` : months ? `${months} month${imports.s(months)} ago` : `${Math.ceil(diff*365)} day${imports.s(Math.ceil(diff*365))} ago`
       computed.cakeday = years > 1 ? [new Date(), new Date(data.user.createdAt)].map(date => date.toISOString().match(/(?<mmdd>\d{2}-\d{2})(?=T)/)?.groups?.mmdd).every((v, _, a) => v === a[0]) : false
 
@@ -97,15 +98,15 @@
       data.meta = {version:conf.package.version, author:conf.package.author}
 
     //Debug flags
-      if ((dflags.includes("--cakeday"))||(dflags.includes("cakeday"))) {
+      if (dflags.includes("--cakeday")) {
         console.debug(`metrics/compute/${login} > applying dflag --cakeday`)
         computed.cakeday = true
       }
-      if ((dflags.includes("--hireable"))||(dflags.includes("hireable"))) {
+      if (dflags.includes("--hireable")) {
         console.debug(`metrics/compute/${login} > applying dflag --hireable`)
         data.user.isHireable = true
       }
-      if ((dflags.includes("--halloween"))||(dflags.includes("halloween"))) {
+      if (dflags.includes("--halloween")) {
         console.debug(`metrics/compute/${login} > applying dflag --halloween`)
         //Haloween color replacer
           const halloween = content => content
@@ -124,6 +125,10 @@
               data.plugins.isocalendar.svg = halloween(data.plugins.isocalendar.svg)
             return {name:"dflag.halloween", result:true}
           })())
+      }
+      if (dflags.includes("--error")) {
+        console.debug(`metrics/compute/${login} > applying dflag --error`)
+        throw new Error("Failed as requested by --error flag")
       }
 
     //Results

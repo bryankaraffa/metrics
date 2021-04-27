@@ -1,13 +1,6 @@
 ;(async function() {
   //Init
-    const {data:templates} = await axios.get("/.templates")
-    const {data:plugins} = await axios.get("/.plugins")
     const {data:metadata} = await axios.get("/.plugins.metadata")
-    const {data:base} = await axios.get("/.plugins.base")
-    const {data:version} = await axios.get("/.version")
-    const {data:hosted} = await axios.get("/.hosted")
-    templates.sort((a, b) => (a.name.startsWith("@") ^ b.name.startsWith("@")) ? (a.name.startsWith("@") ? 1 : -1) : a.name.localeCompare(b.name))
-  //Disable unsupported options
     delete metadata.core.web.output
     delete metadata.core.web.twemojis
   //App
@@ -20,13 +13,42 @@
               this.config.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
               this.palette = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
             } catch (error) {}
-          //GitHub limit tracker
-            const {data:requests} = await axios.get("/.requests")
-            this.requests = requests
-            setInterval(async () => {
-              const {data:requests} = await axios.get("/.requests")
-              this.requests = requests
-            }, 15000)
+          //Init
+            await Promise.all([
+              //GitHub limit tracker
+                (async () => {
+                  const {data:requests} = await axios.get("/.requests")
+                  this.requests = requests
+                })(),
+              //Templates
+                (async () => {
+                  const {data:templates} = await axios.get("/.templates")
+                  templates.sort((a, b) => (a.name.startsWith("@") ^ b.name.startsWith("@")) ? (a.name.startsWith("@") ? 1 : -1) : a.name.localeCompare(b.name))
+                  this.templates.list = templates
+                  this.templates.selected = templates[0]?.name||"classic"
+                })(),
+              //Plugins
+                (async () => {
+                  const {data:plugins} = await axios.get("/.plugins")
+                  this.plugins.list = plugins
+                })(),
+              //Base
+                (async () => {
+                  const {data:base} = await axios.get("/.plugins.base")
+                  this.plugins.base = base
+                  this.plugins.enabled.base = Object.fromEntries(base.map(key => [key, true]))
+                })(),
+              //Version
+                (async () => {
+                  const {data:version} = await axios.get("/.version")
+                  this.version = `v${version}`
+                })(),
+              //Hosted
+                (async () => {
+                  const {data:hosted} = await axios.get("/.hosted")
+                  this.hosted = hosted
+                })(),
+            ])
           //Generate placeholder
             this.mock({timeout:200})
             setInterval(() => {
@@ -50,19 +72,20 @@
         },
       //Data initialization
         data:{
-          version,
+          version:"",
           user:"",
+          mode:"metrics",
           tab:"overview",
           palette:"light",
           requests:{limit:0, used:0, remaining:0, reset:0},
           cached:new Map(),
           config:Object.fromEntries(Object.entries(metadata.core.web).map(([key, {defaulted}]) => [key, defaulted])),
           metadata:Object.fromEntries(Object.entries(metadata).map(([key, {web}]) => [key, web])),
-          hosted,
+          hosted:null,
           plugins:{
-            base,
-            list:plugins,
-            enabled:{base:Object.fromEntries(base.map(key => [key, true]))},
+            base:{},
+            list:[],
+            enabled:{},
             descriptions:{
               base:"🗃️ Base content",
               "base.header":"Header",
@@ -81,8 +104,8 @@
             },
           },
           templates:{
-            list:templates,
-            selected:templates[0]?.name||"classic",
+            list:[],
+            selected:"classic",
             placeholder:{
               timeout:null,
               image:""
@@ -90,6 +113,7 @@
             descriptions:{
               classic:"Classic template",
               terminal:"Terminal template",
+              markdown:"(hidden)",
               repository:"(hidden)",
             },
           },
@@ -101,6 +125,10 @@
         },
       //Computed data
         computed:{
+          //Unusable plugins
+            unusable() {
+              return this.plugins.list.filter(({name}) => this.plugins.enabled[name]).filter(({enabled}) => !enabled).map(({name}) => name)
+            },
           //User's avatar
             avatar() {
               return this.generated.content ? `https://github.com/${this.user}.png` : null
@@ -126,7 +154,7 @@
               //Config
                 const config = Object.entries(this.config).filter(([key, value]) => (value)&&(value !== metadata.core.web[key]?.defaulted)).map(([key, value]) => `config.${key}=${encodeURIComponent(value)}`)
               //Template
-                const template = (this.templates.selected !== templates[0]) ? [`template=${this.templates.selected}`] : []
+                const template = (this.templates.selected !== this.templates.list[0]) ? [`template=${this.templates.selected}`] : []
               //Generated url
                 const params = [...template, ...base, ...plugins, ...options, ...config].join("&")
                 return `${window.location.protocol}//${window.location.host}/${this.user}${params.length ? `?${params}` : ""}`
@@ -144,8 +172,8 @@
                 `  # Schedule updates (each hour)`,
                 `  schedule: [{cron: "0 * * * *"}]`,
                 `  # Lines below let you run workflow manually and on each commit`,
-                `  push: {branches: ["master", "main"]}`,
                 `  workflow_dispatch:`,
+                `  push: {branches: ["master", "main"]}`,
                 `jobs:`,
                 `  github-metrics:`,
                 `    runs-on: ubuntu-latest`,
@@ -154,8 +182,6 @@
                 `        with:`,
                 `          # Your GitHub token`,
                 `          token: ${"$"}{{ secrets.METRICS_TOKEN }}`,
-                `          # GITHUB_TOKEN is a special auto-generated token restricted to current repository, which is used to push files in it`,
-                `          committer_token: ${"$"}{{ secrets.GITHUB_TOKEN }}`,
                 ``,
                 `          # Options`,
                 `          user: ${this.user }`,
@@ -197,7 +223,7 @@
           //Resize mock image
             mockresize() {
               const svg = document.querySelector(".preview .image svg")
-              if (svg) {
+              if ((svg)&&(svg.getAttribute("height") == 99999)) {
                 const height = svg.querySelector("#metrics-end")?.getBoundingClientRect()?.y-svg.getBoundingClientRect()?.y
                 if (Number.isFinite(height))
                   svg.setAttribute("height", height)
