@@ -26,12 +26,13 @@ export default async function metrics({login, q}, {graphql, rest, plugins, conf,
     //Initialization
     const pending = []
     const {queries} = conf
-    const data = {animated:true, base:{}, config:{}, errors:[], plugins:{}, computed:{}}
+    const data = {animated:true, large:false, base:{}, config:{}, errors:[], plugins:{}, computed:{}}
     const imports = {
       plugins:Plugins,
       templates:Templates,
       metadata:conf.metadata,
       ...utils,
+      ...utils.formatters({timeZone:q["config.timezone"]}),
       ...(/markdown/.test(convert)
         ? {
           imgb64(url, options) {
@@ -97,11 +98,14 @@ export default async function metrics({login, q}, {graphql, rest, plugins, conf,
       const _q = q
       const embed = async (name, q = {}) => {
         //Check arguments
+        console.debug(`metrics/compute/${login}/embed > ${name} >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
         if ((!name) || (typeof q !== "object") || (q === null)) {
           if (die)
             throw new Error("An error occured during embed rendering, dying")
           return "<p>⚠️ Failed to execute embed function: invalid arguments</p>"
         }
+        console.debug(`metrics/compute/${login} > embed called with`)
+        console.debug(q)
         let {base} = q
         q = {..._q, ...Object.fromEntries(Object.keys(Plugins).map(key => [key, false])), ...Object.fromEntries(conf.settings.plugins.base.parts.map(part => [`base.${part}`, false])), template:"classic", ...q}
         //Translate action syntax to web syntax
@@ -119,10 +123,9 @@ export default async function metrics({login, q}, {graphql, rest, plugins, conf,
           q.config_animations = false
         }
         q = Object.fromEntries([...Object.entries(q).map(([key, value]) => [key.replace(/^plugin_/, "").replace(/_/g, "."), value]), ["base", false]])
-        console.debug(`metrics/compute/${login} > embed called with`)
-        console.debug(q)
         //Compute rendering
         const {rendered} = await metrics({login, q}, {...arguments[1], convert:["svg", "png", "jpeg"].includes(q["config.output"]) ? q["config.output"] : null}, arguments[2])
+        console.debug(`metrics/compute/${login}/embed > ${name} > success >>>>>>>>>>>>>>>>>>>>>>`)
         return `<img class="metrics-cachable" data-name="${name}" src="data:image/${{png:"png", jpeg:"jpeg"}[q["config.output"]] ?? "svg+xml"};base64,${Buffer.from(rendered).toString("base64")}">`
       }
       //Rendering template source

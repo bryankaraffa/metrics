@@ -1,5 +1,5 @@
 # Base image
-FROM node:15-buster-slim
+FROM node:16.8-buster-slim
 
 # Copy repository
 COPY . /metrics
@@ -10,32 +10,22 @@ RUN chmod +x /metrics/source/app/action/index.mjs \
   # Based on https://github.com/GoogleChrome/puppeteer/blob/master/docs/troubleshooting.md#running-puppeteer-in-docker
   && apt-get update \
   && apt-get install -y wget gnupg ca-certificates libgconf-2-4 \
-    --no-install-recommends \
   && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
   && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
   && apt-get update \
   && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 --no-install-recommends \
   && apt-get install -y ca-certificates fonts-liberation libappindicator3-1 libasound2 libatk-bridge2.0-0 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgbm1 libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 lsb-release wget xdg-utils \
-  && rm -rf /var/lib/apt/lists/* \
-  # Install ruby to support github gems
-  # Based on https://github.com/github/linguist and https://github.com/github/licensed
-  && apt-get update \
-  && apt-get install -y ruby-full \
-    --no-install-recommends \
-  && apt-get install -y git g++ cmake pkg-config libicu-dev zlib1g-dev libcurl4-openssl-dev libssl-dev ruby-dev \
-    --no-install-recommends \
-  && gem install github-linguist \
+  # Install ruby to support github licensed gem
+  && apt-get install -y ruby-full git g++ cmake pkg-config libssl-dev \
   && gem install licensed \
-    --no-install-recommends \
   # Install python for node-gyp
-  && apt-get update \
   && apt-get install -y python3 \
-    --no-install-recommends \
   # Install node modules
   && cd /metrics \
   && npm ci \
   # Rebuild indexes
-  && npm run index
+  && npm run index \
+  && rm -rf /var/lib/apt/lists/*
 
 # Environment variables
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true

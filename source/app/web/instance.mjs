@@ -81,10 +81,10 @@ export default async function({mock, nosettings} = {}) {
   const limiter = ratelimit({max:debug ? Number.MAX_SAFE_INTEGER : 60, windowMs:60 * 1000, headers:false})
   const metadata = Object.fromEntries(
     Object.entries(conf.metadata.plugins)
-      .map(([key, value]) => [key, Object.fromEntries(Object.entries(value).filter(([key]) => ["name", "icon", "categorie", "web", "supports"].includes(key)))])
+      .map(([key, value]) => [key, Object.fromEntries(Object.entries(value).filter(([key]) => ["name", "icon", "category", "web", "supports"].includes(key)))])
       .map(([key, value]) => [key, key === "core" ? {...value, web:Object.fromEntries(Object.entries(value.web).filter(([key]) => /^config[.]/.test(key)).map(([key, value]) => [key.replace(/^config[.]/, ""), value]))} : value]),
   )
-  const enabled = Object.entries(metadata).filter(([_name, {categorie}]) => categorie !== "core").map(([name]) => ({name, enabled:plugins[name]?.enabled ?? false}))
+  const enabled = Object.entries(metadata).filter(([_name, {category}]) => category !== "core").map(([name]) => ({name, enabled:plugins[name]?.enabled ?? false}))
   const templates = Object.entries(Templates).map(([name]) => ({name, enabled:(conf.settings.templates.enabled.length ? conf.settings.templates.enabled.includes(name) : true) ?? false}))
   const actions = {flush:new Map()}
   let requests = {limit:0, used:0, remaining:0, reset:NaN}
@@ -130,6 +130,7 @@ export default async function({mock, nosettings} = {}) {
   app.get("/.js/prism.min.js", limiter, (req, res) => res.sendFile(`${conf.paths.node_modules}/prismjs/prism.js`))
   app.get("/.js/prism.yaml.min.js", limiter, (req, res) => res.sendFile(`${conf.paths.node_modules}/prismjs/components/prism-yaml.min.js`))
   app.get("/.js/prism.markdown.min.js", limiter, (req, res) => res.sendFile(`${conf.paths.node_modules}/prismjs/components/prism-markdown.min.js`))
+  app.get("/.js/clipboard.min.js", limiter, (req, res) => res.sendFile(`${conf.paths.node_modules}/clipboard/dist/clipboard.min.js`))
   //Meta
   app.get("/.version", limiter, (req, res) => res.status(200).send(conf.package.version))
   app.get("/.requests", limiter, (req, res) => res.status(200).json(requests))
@@ -188,9 +189,17 @@ export default async function({mock, nosettings} = {}) {
             "activity.limit":100,
             "activity.days":0,
             notable:true,
+            followup:true,
+            "followup.sections":"repositories, user",
+            habits:true,
+            "habits.from":100,
+            "habits.days":7,
+            "habits.facts":false,
+            "habits.charts":true,
+            introduction:true
           },
         },
-        {graphql, rest, plugins:{achievements:{enabled:true}, isocalendar:{enabled:true}, languages:{enabled:true}, activity:{enabled:true, markdown:"extended"}, notable:{enabled:true}}, conf, convert:"json"},
+        {graphql, rest, plugins:{achievements:{enabled:true}, isocalendar:{enabled:true}, languages:{enabled:true}, activity:{enabled:true, markdown:"extended"}, notable:{enabled:true}, followup:{enabled:true}, habits:{enabled:true}, introduction:{enabled:true}}, conf, convert:"json"},
         {Plugins, Templates},
       )
       //Cache

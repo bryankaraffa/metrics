@@ -39,23 +39,15 @@ export default async function({login, data, graphql, q, imports, queries, accoun
 
     //Compute the highest contributions in a day, streaks and average commits per day
     console.debug(`metrics/compute/${login}/plugins > isocalendar > computing stats`)
-    let average = 0, max = 0, streak = {max:0, current:0}, values = []
-    for (const week of calendar.weeks) {
-      for (const day of week.contributionDays) {
-        values.push(day.contributionCount)
-        max = Math.max(max, day.contributionCount)
-        streak.current = day.contributionCount ? streak.current + 1 : 0
-        streak.max = Math.max(streak.max, streak.current)
-      }
-    }
-    average = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2).replace(/[.]0+$/, "")
+    const {streak, max, average} = await statistics({login, data, graphql, queries})
+    const reference = Math.max(...calendar.weeks.flatMap(({contributionDays}) => contributionDays.map(({contributionCount}) => contributionCount)))
 
     //Compute SVG
     console.debug(`metrics/compute/${login}/plugins > isocalendar > computing svg render`)
     const size = 6
     let i = 0, j = 0
     let svg = `
-            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" style="margin-top: -52px;" viewBox="0,0 480,${duration === "full-year" ? 270 : 170}">
+            <svg version="1.1" xmlns="http://www.w3.org/2000/svg" style="margin-top: -130px;" viewBox="0,0 480,${duration === "full-year" ? 270 : 170}">
               ${
       [1, 2].map(k => `
                 <filter id="brightness${k}">
@@ -73,7 +65,7 @@ export default async function({login, data, graphql, q, imports, queries, accoun
       j = 0
       //Iterate through days
       for (const day of week.contributionDays) {
-        const ratio = day.contributionCount / max
+        const ratio = day.contributionCount / reference
         svg += `
                     <g transform="translate(${j * -1.7}, ${j + (1 - ratio) * size})">
                       <path fill="${day.color}" d="M1.7,2 0,1 1.7,0 3.4,1 z" />
@@ -96,4 +88,31 @@ export default async function({login, data, graphql, q, imports, queries, accoun
       throw error
     throw {error:{message:"An error occured", instance:error}}
   }
+}
+
+/**Compute max and current streaks */
+async function statistics({login, data, graphql, queries}) {
+  let average = 0, max = 0, streak = {max:0, current:0}, values = []
+  const now = new Date()
+  for (let from = new Date(data.user.createdAt); from < now;) {
+    //Load contribution calendar
+    let to = new Date(from)
+    to.setFullYear(to.getFullYear() + 1)
+    if (to > now)
+      to = now
+    console.debug(`metrics/compute/${login}/plugins > isocalendar > loading calendar from "${from.toISOString()}" to "${to.toISOString()}"`)
+    const {user:{calendar:{contributionCalendar:{weeks}}}} = await graphql(queries.isocalendar.calendar({login, from:from.toISOString(), to:to.toISOString()}))
+    from = to
+    //Compute streaks
+    for (const week of weeks) {
+      for (const day of week.contributionDays) {
+        values.push(day.contributionCount)
+        max = Math.max(max, day.contributionCount)
+        streak.current = day.contributionCount ? streak.current + 1 : 0
+        streak.max = Math.max(streak.max, streak.current)
+      }
+    }
+  }
+  average = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2).replace(/[.]0+$/, "")
+  return {streak, max, average}
 }

@@ -31,7 +31,7 @@
         //Plugins
         (async () => {
           const { data: plugins } = await axios.get("/.plugins")
-          this.plugins.list = plugins
+          this.plugins.list = plugins.filter(({name}) => metadata[name]?.supports.includes("user") || metadata[name]?.supports.includes("organization"))
         })(),
         //Base
         (async () => {
@@ -63,6 +63,13 @@
     components: { Prism: PrismComponent },
     //Watchers
     watch: {
+      tab: {
+        immediate: true,
+        handler(current) {
+          if (current === 'action') this.clipboard = new ClipboardJS('.copy-action')
+          else this.clipboard?.destroy()
+        },
+      },
       palette: {
         immediate: true,
         handler(current, previous) {
@@ -78,6 +85,7 @@
       mode: "metrics",
       tab: "overview",
       palette: "light",
+      clipboard: null,
       requests: { limit: 0, used: 0, remaining: 0, reset: 0 },
       cached: new Map(),
       config: Object.fromEntries(Object.entries(metadata.core.web).map(([key, { defaulted }]) => [key, defaulted])),
@@ -192,13 +200,13 @@
           `          base: ${Object.entries(this.plugins.enabled.base).filter(([key, value]) => value).map(([key]) => key).join(", ") || '""'}`,
           ...[
             ...Object.entries(this.plugins.options).filter(([key, value]) => (key in metadata.base.web) && (value !== metadata.base.web[key]?.defaulted)).map(([key, value]) =>
-              `          ${key.replace(/[.]/, "_")}: ${typeof value === "boolean" ? { true: "yes", false: "no" }[value] : value}`
+              `          ${key.replace(/[.]/g, "_")}: ${typeof value === "boolean" ? { true: "yes", false: "no" }[value] : value}`
             ),
             ...Object.entries(this.plugins.enabled).filter(([key, value]) => (key !== "base") && (value)).map(([key]) => `          plugin_${key}: yes`),
             ...Object.entries(this.plugins.options).filter(([key, value]) => value).filter(([key, value]) => this.plugins.enabled[key.split(".")[0]]).map(([key, value]) =>
-              `          plugin_${key.replace(/[.]/, "_")}: ${typeof value === "boolean" ? { true: "yes", false: "no" }[value] : value}`
+              `          plugin_${key.replace(/[.]/g, "_")}: ${typeof value === "boolean" ? { true: "yes", false: "no" }[value] : value}`
             ),
-            ...Object.entries(this.config).filter(([key, value]) => (value) && (value !== metadata.core.web[key]?.defaulted)).map(([key, value]) => `          config_${key.replace(/[.]/, "_")}: ${typeof value === "boolean" ? { true: "yes", false: "no" }[value] : value}`),
+            ...Object.entries(this.config).filter(([key, value]) => (value) && (value !== metadata.core.web[key]?.defaulted)).map(([key, value]) => `          config_${key.replace(/[.]/g, "_")}: ${typeof value === "boolean" ? { true: "yes", false: "no" }[value] : value}`),
           ].sort(),
         ].join("\n")
       },
@@ -208,7 +216,7 @@
         const enabled = Object.entries(this.plugins.enabled).filter(([key, value]) => (value) && (key !== "base")).map(([key, value]) => key)
         const filter = new RegExp(`^(?:${enabled.join("|")})[.]`)
         //Search related options
-        const entries = Object.entries(this.plugins.options.descriptions).filter(([key, value]) => filter.test(key))
+        const entries = Object.entries(this.plugins.options.descriptions).filter(([key, value]) => (filter.test(key)) && (!(key in metadata.base.web)))
         entries.push(...enabled.map(key => [key, this.plugins.descriptions[key]]))
         entries.sort((a, b) => a[0].localeCompare(b[0]))
         //Return object

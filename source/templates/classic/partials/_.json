@@ -4,9 +4,11 @@
   "base.activity+community",
   "base.repositories",
   "followup",
+  "discussions",
   "languages",
   "notable",
   "projects",
+  "repositories",
   "gists",
   "pagespeed",
   "habits",
@@ -29,5 +31,6 @@
   "stackoverflow",
   "stock",
   "achievements",
-  "screenshot"
+  "screenshot",
+  "code"
 ]
